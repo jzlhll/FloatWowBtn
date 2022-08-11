@@ -7,6 +7,7 @@ namespace FloatWowBtn
     {
         public static readonly Context Instance = new Context();
 
+        public bool IsStillGobackToFrontChecked = false;
         public FloatWindowBtnForm MainForm { set; private get; }
 
         private List<IntPtrIndex> _AllWowPtrs = new List<IntPtrIndex>();

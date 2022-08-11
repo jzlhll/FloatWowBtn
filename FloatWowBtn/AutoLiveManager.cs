@@ -8,7 +8,7 @@ namespace FloatWowBtn
 {
     class StartingInfo {
         public bool IsStarted;
-        public long Ts;
+        public long UUID;
     }
 
     class RandomKeyHelp {
@@ -28,13 +28,16 @@ namespace FloatWowBtn
     {
         public static readonly AutoLiveManager Instance = new AutoLiveManager();
 
-        public delegate void InfoCallbackDelegate(string s);
+        public delegate void InfoCallbackDelegate(string s, bool append = false);
         public InfoCallbackDelegate InfoCallback { set; private get; }
+
+        public delegate void OnStoppedDelegate();
+        public OnStoppedDelegate OnStoppedCallback { set; private get; }
 
         public bool Enabled { set; get; } = false;
 
-        private static readonly int[] DelayTimeList = { 190, 200, 210, 220, 230};
-        public static readonly List<Keys> DefaultAutoLiveKeys = new List<Keys>() { Keys.D8, Keys.Space};
+        private static readonly int[] DelayTimeList = { 180, 200, 220};
+        public static readonly List<Keys> DefaultAutoLiveKeys = new List<Keys>() { Keys.D8, Keys.X, Keys.Space};
 
         private StartingInfo mStartInfo;
 
@@ -46,22 +49,22 @@ namespace FloatWowBtn
                 return;
             }
 
-            var si = new StartingInfo
+            var thisInfo = new StartingInfo
             {
                 IsStarted = true,
-                Ts = DateTime.Now.Ticks
+                UUID = new Random().Next(1000)
             };
+            mStartInfo = thisInfo;
 
             new Task(()=>{
-                StartingInfo thisInfo = si;
-                mStartInfo = si;
                 Enabled = true;
                 RandomKeyHelp status = new RandomKeyHelp();
                 long whileCount = 0;
 
                 while (thisInfo.IsStarted) {
                     var ts = DelayTimeList[new Random().Next(DelayTimeList.Length)];
-                    InfoCallback("延迟休眠时间为：" + ts + "秒；");
+                    var k = status.Next();
+                    InfoCallback(thisInfo.UUID + ":延迟" + ts + "秒，" + " 下次按键为" + k + ":");
                     if (whileCount++ == 0)
                     {
                         Thread.Sleep(ts * 200);
@@ -71,15 +74,17 @@ namespace FloatWowBtn
                         Thread.Sleep(ts * 1000);
                     }
 
-                    if (!thisInfo.IsStarted) {
-                        InfoCallback("延迟完发现已经关闭啦！");
+                    if (!thisInfo.IsStarted) { //不论如何都跳出
+                        if (thisInfo == mStartInfo) { //不同才输出日志。因为已经换了线程执行了。
+                            InfoCallback(thisInfo.UUID + ":延迟后发现已关闭!");
+                        }
                         break;
                     }
-                    var k = status.Next();
-                    InfoCallback("延迟后按键：" + k);
-                    if (!mFloatSwitchDispatcher.SwitchAndActive(true, k)) {
-                        InfoCallback("wow进程发生变化。停止工作。");
-                        Stop();
+
+                    InfoCallback(" OK!", true);
+                    if (!mFloatSwitchDispatcher.SwitchAndActive(new KeysAndMouseEvent(k, true, false))) {
+                        InfoCallback(thisInfo.UUID + "wow进程发生变化，停止！");
+                        OnStoppedCallback?.Invoke();
                         break;
                     }
                 }
@@ -90,13 +95,14 @@ namespace FloatWowBtn
         {
             if (!Enabled)
             {
-                InfoCallback("已经停止啦。");
+                InfoCallback(mStartInfo.UUID + ":已经停止啦。");
                 return;
             }
 
             mStartInfo.IsStarted = false;
+            InfoCallback(mStartInfo.UUID + ":停止工作！");
+            mStartInfo = null;
             Enabled = false;
-            InfoCallback("停止工作！");
         }
     }
 }

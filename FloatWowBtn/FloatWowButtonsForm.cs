@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace FloatWowBtn
@@ -11,6 +10,11 @@ namespace FloatWowBtn
         private readonly List<CheckBox> CheckBoxes = new List<CheckBox>();
         private readonly FloatSwitchButtonDispatcher mActive = new FloatSwitchButtonDispatcher();
         private readonly AutoLiveManager mLiveManager = new AutoLiveManager();
+
+        private Point flowBoxWhenBigPoint, flowBoxWhenSmallPoint;
+        private Size flowBoxBigSize, flowBoxSmallSize;
+
+        private Size windowBigSize, windowSmallSize;
 
         public FloatWindowBtnForm()
         {
@@ -26,7 +30,14 @@ namespace FloatWowBtn
 
             Context.Instance.AllWowPtrsChangedEvent += Instance_AllWowPtrsChangedEvent;
 
-            mLiveManager.InfoCallback = (s) =>
+            mLiveManager.OnStoppedCallback = () =>
+            {
+                BeginInvoke(new Action(() => {
+                    mLiveManager.Stop();
+                }));
+            };
+
+            mLiveManager.InfoCallback = (s, append) =>
             {
                 ALog.D("callback: " + s);
                 BeginInvoke(new Action(() => {
@@ -34,25 +45,60 @@ namespace FloatWowBtn
                     if (text.Length > 3000) {
                         text = text.Substring(text.Length / 2, text.Length - (text.Length/2));
                     }
-                    text += "\r\n" + s;
+                    if (append)
+                    {
+                        text += s;
+                    }
+                    else {
+                        text += "\r\n" + s;
+                    }
+                    
                     AutoLiveTextBox.Text = text;
+                    AutoLiveTextBox.SelectionStart = AutoLiveTextBox.Text.Length;
+                    AutoLiveTextBox.ScrollToCaret();
                 }));
             };
 
             mActive.Scan();
+            flowBoxWhenBigPoint = FlowBox.Location;
+            flowBoxWhenSmallPoint = new Point(2, flowBoxWhenBigPoint.Y + 10);
+
+            flowBoxBigSize = FlowBox.Size;
+            flowBoxSmallSize = new Size(SmallerBtn.Width + 8, SmallerBtn.Height * 3 + 25);
+
+            windowBigSize = Size;
+            windowSmallSize = new Size(flowBoxSmallSize.Width + 5, flowBoxSmallSize.Height + 5);
+
+            WindowSizeDispatcher.Instance.Register(toBig=>{
+                if (!toBig)
+                {
+                    Size = windowSmallSize;
+                    tabControl1.Visible = false;
+                    SmallerBtn.Text = "放大";
+                    FlowBox.Location = flowBoxWhenSmallPoint;
+                    FlowBox.Size = flowBoxSmallSize;
+                }
+                else
+                {
+                    Size = windowBigSize;
+                    tabControl1.Visible = true;
+                    SmallerBtn.Text = "缩小";
+                    FlowBox.Location = flowBoxWhenBigPoint;
+                    FlowBox.Size = flowBoxBigSize;
+                }
+            });
         }
 
         private void Instance_AllWowPtrsChangedEvent()
         {
             
             ShowOnChecks(Context.Instance.AllWowPtrs);
-            AllStateLabel.Visible = false;
         }
 
         private void ShowOnChecks(List<IntPtrIndex> wowStrs) {
             for (int i = 0; i < CheckBoxes.Count && i < wowStrs.Count; i++) {
                 CheckBoxes[i].Visible = true;
-                CheckBoxes[i].Text = wowStrs[i].Addr.ToString();
+                CheckBoxes[i].Text =  "0x" + wowStrs[i].Addr.ToString("X8");
                 CheckBoxes[i].Tag = wowStrs[i].Addr;
             }
 
@@ -64,7 +110,6 @@ namespace FloatWowBtn
                 }
             }
         }
-
 
         #region 让窗口可以随意拖动
 
@@ -81,39 +126,14 @@ namespace FloatWowBtn
         }
         #endregion
 
-        private void AutoClick8Btn_Click(object sender, EventArgs e)
-        {
-            ClickOn(ClickMode.Click8);
-        }
-
-
-        private void AutoClick2Btn_Click(object sender, EventArgs e)
-        {
-            ClickOn(ClickMode.Click2);
-        }
-
-        private void AutoClick3Btn_Click(object sender, EventArgs e)
-        {
-            ClickOn(ClickMode.Click3);
-        }
-
-        private void AutoClick4Btn_Click(object sender, EventArgs e)
-        {
-            ClickOn(ClickMode.Click4);
-        }
-
-        private void AutoGuajiBtn_Click(object sender, EventArgs e)
-        {
-        }
-
         private void SwitchBtn_Click(object sender, EventArgs e)
         {
-            ClickOn(ClickMode.NoClick);
+            ClickOn(ClickMode.NoClick, Keys.D0);
         }
 
         private void SwitchAndActiveBtn_Click(object sender, EventArgs e)
         {
-            ClickOn(ClickMode.ClickSpace);
+            ClickOn(ClickMode.ClickSpace, Keys.D0);
         }
 
         public List<IntPtr> AllCheckedPtrs() {
@@ -129,18 +149,7 @@ namespace FloatWowBtn
 
         private void CloseBtn_Click(object sender, EventArgs e)
         {
-            if (mIsBig)
-            {
-                Close();
-            }
-            else {
-                SmallerBtn_Click(null, null);
-            }
-        }
-
-        private void ScanAllWowListBtn_Click(object sender, EventArgs e)
-        {
-            mActive.Scan();
+            Close();
         }
 
         private void AutoLiveBtn_Click(object sender, EventArgs e)
@@ -152,107 +161,112 @@ namespace FloatWowBtn
             }
             else 
             {
+                mActive.Scan();
                 mLiveManager.Start();
                 AutoLiveBtn.Text = "停止";
             }
         }
 
         private enum ClickMode {
-            Click8,
-            Click2,
-            Click3,
-            Click4,
             ClickSpace,
-            ClickZ,
             NoClick,
             Scan,
+            Key,
+            Mouse
         }
 
-        private void ClickOn(ClickMode md) {
+        private void ClickOn(ClickMode md, Keys key, WindowApi.MouseType[] events = null) {
             if (!ClickNoDouble.Instance.IsAccept())
             {
                 return;
             }
 
             bool isNoChanged = true;
+            bool toFront = Context.Instance.IsStillGobackToFrontChecked;
             switch (md)
             {
                 case ClickMode.Scan:
                     mActive.Scan();
                     break;
-                case ClickMode.Click8:
-                    isNoChanged = mActive.SwitchAndActive(true, Keys.D8);
+                case ClickMode.Mouse:
+                    isNoChanged = mActive.SwitchAndActive(new KeysAndMouseEvent(events, true, toFront));
                     break;
-                case ClickMode.Click2:
-                    isNoChanged = mActive.SwitchAndActive(true, Keys.D2);
-                    break;
-                case ClickMode.Click3:
-                    isNoChanged = mActive.SwitchAndActive(true, Keys.D3);
-                    break;
-                case ClickMode.Click4:
-                    isNoChanged = mActive.SwitchAndActive(true, Keys.D4);
+                case ClickMode.Key:
+                    isNoChanged = mActive.SwitchAndActive(new KeysAndMouseEvent(key, true, toFront));
                     break;
                 case ClickMode.NoClick:
-                    isNoChanged = mActive.SwitchAndActive(false, Keys.Space);
+                    isNoChanged = mActive.SwitchAndActive(new KeysAndMouseEvent(Keys.Space, false, toFront));
                     break;
                 case ClickMode.ClickSpace:
-                    isNoChanged = mActive.SwitchAndActive(true, Keys.Space);
-                    break;
-                case ClickMode.ClickZ:
-                    isNoChanged = mActive.SwitchAndActive(true, Keys.Z);
+                    isNoChanged = mActive.SwitchAndActive(new KeysAndMouseEvent(Keys.Space, true, toFront));
                     break;
                 default:
                     break;
             }
 
             if (!isNoChanged) {
-                AllStateLabel.Text = "wow进程变化，重新点击[扫描wow进程]";
-                AllStateLabel.Visible = true;
+                ALog.D("is no changed = false");
             }
         }
-
-        private bool mIsBig = true;
-        private Size mBigSize = new Size(277, 320);
-        private Size mSmallSize = new Size(100, 50);
 
         private void SmallerBtn_Click(object sender, EventArgs e)
         {
-            if (mIsBig)
-            {
-                Size = mSmallSize;
-                SpaceBtn.Visible = true;
-                ZBtn.Visible = true;
-                Smaller2Btn.Visible = true;
-            }
-            else {
-                Size = mBigSize;
-                SpaceBtn.Visible = false;
-                ZBtn.Visible = false;
-                Smaller2Btn.Visible = false;
-            }
-
-            mIsBig = !mIsBig;
+            WindowSizeDispatcher.Instance.SwitchChange();
         }
 
-        private void SpaceBtn_Click(object sender, EventArgs e)
+        private void FloatWindowBtnForm_KeyDown(object sender, KeyEventArgs e)
         {
-            ClickOn(ClickMode.ClickSpace);
+            ALog.D("on key FloatWindowBtnForm_KeyDown " + e.KeyCode);
         }
 
-        private void ZBtn_Click(object sender, EventArgs e)
+        private void FloatWindowBtnForm_KeyPress(object sender, KeyPressEventArgs e)
         {
-            ClickOn(ClickMode.ClickZ);
+            ALog.D("on key FloatWindowBtnForm_KeyPress " + e.KeyChar);
         }
 
-        private void Smaller2Btn_Click(object sender, EventArgs e)
+        private void FloatWindowBtnForm_KeyUp(object sender, KeyEventArgs e)
         {
-            SmallerBtn_Click(null, null);
+            ALog.D("on key FloatWindowBtnForm_KeyUp " + e.KeyCode);
         }
 
-        private void Current_Click(object sender, EventArgs e)
+        private void SingleBtn1_Click(object sender, EventArgs e)
         {
-            IntPtr intPtr = WindowApi.FindWindow(null, "魔兽世界");
-            Current.Text = "当前的wow:" + intPtr;
+            ClickOn(ClickMode.Key, Keys.D1);
         }
+
+        private void SingleBtn2_Click(object sender, EventArgs e)
+        {
+            ClickOn(ClickMode.Key, Keys.D2);
+        }
+
+        private void StillGobackCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            Context.Instance.IsStillGobackToFrontChecked = StillGobackCheckBox.Checked;
+        }
+
+        private void SingleBtn3_Click(object sender, EventArgs e)
+        {
+            ClickOn(ClickMode.Key, Keys.D3);
+        }
+
+        private void SingleBtn4__Click(object sender, EventArgs e)
+        {
+            ClickOn(ClickMode.Key, Keys.D4);
+        }
+
+        private void SingleBtn4_Click(object sender, EventArgs e)
+        {
+            ClickOn(ClickMode.Key, Keys.D8);
+        }
+
+        //private void SpaceBtn_Click(object sender, EventArgs e)
+        //{
+        //    ClickOn(ClickMode.ClickSpace);
+        //}
+
+        //private void ZBtn_Click(object sender, EventArgs e)
+        //{
+        //    ClickOn(ClickMode.ClickZ);
+        //}
     }
 }

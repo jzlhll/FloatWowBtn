@@ -52,9 +52,11 @@
     <Compile Include="ALog.cs" />
     <Compile Include="AutoLiveManager.cs" />
     <Compile Include="ClickNoDouble.cs" />
+    <Compile Include="ConfigFile.cs" />
     <Compile Include="Context.cs" />
     <Compile Include="FloatSwitchButtonDispatcher.cs" />
     <Compile Include="IButtonDispatcher.cs" />
+    <Compile Include="IWindowSizeChanged.cs" />
     <Compile Include="WindowApi.cs" />
     <Compile Include="FloatWowButtonsForm.cs">
       <SubType>Form</SubType>
@@ -76,6 +78,9 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <None Include="..\.editorconfig">
+      <Link>.editorconfig</Link>
+    </None>
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace FloatWowBtn
 {
@@ -51,12 +51,12 @@ namespace FloatWowBtn
             return -1;
         }
 
-        public bool SwitchAndActive(bool active, Keys keys)
+        public bool SwitchAndActive(KeysAndMouseEvent mouseevents)
         {
-            return SwitchAndActive(active, keys, GetSwitchDelayTime());
+            return SwitchAndActive(mouseevents, GetSwitchDelayTime());
         }
 
-        public bool SwitchAndActive(bool active, Keys keys, int eachWowDelayMs) {
+        public bool SwitchAndActive(KeysAndMouseEvent mouseevents, int eachWowDelayMs) {
             var list = CurrentWowPtrs();
 
             var curAllList = Context.Instance.AllWowPtrs;
@@ -64,7 +64,7 @@ namespace FloatWowBtn
                 return false;
             }
 
-            for (int i = 0; i < list.Count;i++) {
+            for (int i = 0; i < list.Count; i++) {
                 var index = IndexOf(curAllList, list[i]);
                 if (index < 0)
                 {
@@ -73,34 +73,56 @@ namespace FloatWowBtn
             }
 
             var selectedList = Context.Instance.CurrentSelectedPtrs();
+            var allList = Context.Instance.AllWowPtrs;
+            var union = new KeysAndMouseUnion(mouseevents);
+            bool toFront = mouseevents.SwitchToFront; //表示本次事件；是否允许所有窗口，即使不勾选的也要恢复到当前
 
-            int num = 50;
-            foreach (var p in list)
+            new Task(() =>
             {
-                if (selectedList.Contains(p)) {
-                    OnceShowAsync(p, num, active, keys);
-                    num += eachWowDelayMs;
+                int num = 50;
+                foreach (var p in allList)
+                {
+                    if (selectedList.Contains(p.Addr))
+                    {
+                        show(p.Addr, num, true, mouseevents.Active, union);
+                        num += eachWowDelayMs;
+                    }
+                    else 
+                    {
+                        if (toFront) {
+                            show(p.Addr, num, true, false, union); //由于不在勾选列表；我们就不做激活；但是允许toFront
+                            num += eachWowDelayMs;
+                        }
+                    }
                 }
-            }
-
+            }).Start();
+            
             return true;
         }
-
-        private async void OnceShowAsync(IntPtr p, int delayTime, bool active, Keys keys)
+ 
+        private void show(IntPtr p, int delayTime, bool toFront, bool active, KeysAndMouseUnion obj)
         {
             if (!(p == IntPtr.Zero))
             {
-                await Task.Delay(delayTime);
-                await Task.Run(delegate
+                Thread.Sleep(delayTime);
+                ALog.DAndTime("windows <" + p + "> to front:" + toFront + ", active " + active);
+                if (toFront)
                 {
-                    ALog.DAndTime("windows <" + p + "> to front:" + active);
                     WindowApi.SetForegroundWindow(p);
+                }
 
-                    if (active) {
-                        ALog.DAndTime("windows <" + p + " key: " + keys);
-                        WindowApi.ClickKeyboard(keys);
+                if (active)
+                {
+                    if (obj.Events != null)
+                    {
+                        ALog.DAndTime("windows <" + p + " key: " + obj.Events);
+                        WindowApi.ClickMouse(obj.Events);
+                    } else
+                    {
+                        ALog.DAndTime("windows <" + p + " key: " + obj.Events);
+                        WindowApi.ClickKeyboard(obj.Key);
                     }
-                });
+                }
             }
         }
     }
