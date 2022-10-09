@@ -13,6 +13,9 @@ namespace FloatWowBtn
         private readonly List<IWindowSizeChanged> windowSizeChangeds = new List<IWindowSizeChanged>();
 
         private bool mState = true; //当前是否是全屏
+        public bool getState() {
+            return mState;
+        }
 
         public void Register(IWindowSizeChanged c) {
             if (!windowSizeChangeds.Contains(c)) windowSizeChangeds.Add(c);

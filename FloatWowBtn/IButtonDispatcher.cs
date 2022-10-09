@@ -4,8 +4,10 @@ namespace FloatWowBtn
 {
     public interface IButtonDispatcher
     {
+        void Resort();
         void Scan();
         bool SwitchAndActive(KeysAndMouseEvent mouseevents, int eachWowDelayMs = 1000);
+        bool SwitchIt();
     }
 
     public class KeysAndMouseUnion {

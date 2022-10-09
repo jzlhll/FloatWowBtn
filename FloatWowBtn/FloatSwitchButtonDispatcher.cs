@@ -2,12 +2,13 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using static FloatWowBtn.FloatWindowBtnForm;
 
 namespace FloatWowBtn
 {
     class FloatSwitchButtonDispatcher : IButtonDispatcher
     {
-        public static readonly int[] SWITCH_TIMES = new int[] { 100, 150, 200, 180};
+        public static int[] SWITCH_TIMES = new int[] { 100, 150, 200, 180};
         private int GetSwitchDelayTime() {
            int index = new Random().Next(SWITCH_TIMES.Length);
             return SWITCH_TIMES[index];
@@ -30,20 +31,27 @@ namespace FloatWowBtn
         public void Scan()
         {
             var list = CurrentWowPtrs();
-            var wowPtrIndexes = new List<IntPtrIndex>();
-            for (int i = 0; i < list.Count; i++) {
-                wowPtrIndexes.Add(new IntPtrIndex() {
-                    Addr = list[i],
-                    Index = i
-                });
-            }
-            Context.Instance.AllWowPtrs = wowPtrIndexes;
+            Context.Instance.SetAllWowPtrsAndNotified(list);
+
+            RegisterOb();
         }
 
-        private static int IndexOf(List<IntPtrIndex> indexes, IntPtr addr) {
+        private IntPtr mLastSwitchFrontAddr = IntPtr.Zero;
+
+        private bool _isRegistObserverList = false;
+        private void RegisterOb() {
+            if (!_isRegistObserverList) {
+                _isRegistObserverList = true;
+                Context.Instance.AllWowPtrsChangedEvent += () => {
+                    mLastSwitchFrontAddr = IntPtr.Zero;
+                };
+            }
+        }
+
+        private static int IndexOf(List<IntPtr> indexes, IntPtr addr) {
             for (int i = 0; i < indexes.Count; i++)
             {
-                if (indexes[i].Addr == addr) {
+                if (indexes[i] == addr) {
                     return i;
                 }
             }
@@ -59,7 +67,7 @@ namespace FloatWowBtn
         public bool SwitchAndActive(KeysAndMouseEvent mouseevents, int eachWowDelayMs) {
             var list = CurrentWowPtrs();
 
-            var curAllList = Context.Instance.AllWowPtrs;
+            var curAllList = Context.Instance.CachedAllWowPtrs;
             if (list.Count != curAllList.Count) {
                 return false;
             }
@@ -72,25 +80,24 @@ namespace FloatWowBtn
                 }
             }
 
-            var selectedList = Context.Instance.CurrentSelectedPtrs();
-            var allList = Context.Instance.AllWowPtrs;
+            var selectedList = Context.Instance.CurrentSelectedPtrs;
             var union = new KeysAndMouseUnion(mouseevents);
             bool toFront = mouseevents.SwitchToFront; //表示本次事件；是否允许所有窗口，即使不勾选的也要恢复到当前
 
             new Task(() =>
             {
                 int num = 50;
-                foreach (var p in allList)
+                foreach (var p in curAllList)
                 {
-                    if (selectedList.Contains(p.Addr))
+                    if (selectedList.Contains(p))
                     {
-                        show(p.Addr, num, true, mouseevents.Active, union);
+                        show(p, num, true, mouseevents.Active, union);
                         num += eachWowDelayMs;
                     }
                     else 
                     {
                         if (toFront) {
-                            show(p.Addr, num, true, false, union); //由于不在勾选列表；我们就不做激活；但是允许toFront
+                            show(p, num, true, false, union); //由于不在勾选列表；我们就不做激活；但是允许toFront
                             num += eachWowDelayMs;
                         }
                     }
@@ -111,7 +118,7 @@ namespace FloatWowBtn
                     WindowApi.SetForegroundWindow(p);
                 }
 
-                if (active)
+                if (active && obj != null)
                 {
                     if (obj.Events != null)
                     {
@@ -125,11 +132,43 @@ namespace FloatWowBtn
                 }
             }
         }
+
+        public void Resort()
+        {
+            var curList = Context.Instance.CachedAllWowPtrs;
+            var list = CurrentWowPtrs();
+            if (Utils.IsSame(curList, list))
+            {
+                Utils.ListRandomByOffset1(list);
+            }
+            Context.Instance.SetAllWowPtrsAndNotified(list);
+        }
+
+        public bool SwitchIt()
+        {
+            var list = Context.Instance.CachedAllWowPtrs;
+
+            if (mLastSwitchFrontAddr == IntPtr.Zero && list.Count > 0) {
+                mLastSwitchFrontAddr = list[0];
+            }
+            for (int i = 0; i < list.Count; i++) {
+                if (list[i] == mLastSwitchFrontAddr)
+                {
+                    i++;
+                    if (i == list.Count) {
+                        i = 0;
+                    }
+
+                    IntPtr last = mLastSwitchFrontAddr;
+                    show(last, 50, true, false, null);
+
+                    mLastSwitchFrontAddr = list[i];
+                    break;
+                }
+            }
+
+            return true;
+        }
     }
 
-    public class IntPtrIndex
-    {
-        public IntPtr Addr { set; get; }
-        public int Index { set; get; }
-    }
 }

@@ -36,7 +36,7 @@ namespace FloatWowBtn
 
         public bool Enabled { set; get; } = false;
 
-        private static readonly int[] DelayTimeList = { 180, 200, 220};
+        private static readonly int[] DelayTimeList = { 120, 140, 110};
         public static readonly List<Keys> DefaultAutoLiveKeys = new List<Keys>() { Keys.D8, Keys.X, Keys.Space};
 
         private StartingInfo mStartInfo;

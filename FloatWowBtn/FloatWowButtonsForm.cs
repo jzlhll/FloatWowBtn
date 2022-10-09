@@ -29,6 +29,7 @@ namespace FloatWowBtn
             CheckBoxes.Add(Wow6Checkbox);
 
             Context.Instance.AllWowPtrsChangedEvent += Instance_AllWowPtrsChangedEvent;
+            Context.Instance.MyTopMostAlwaysEvent += Instance_MyTopMostAlwaysEvent;
 
             mLiveManager.OnStoppedCallback = () =>
             {
@@ -77,6 +78,8 @@ namespace FloatWowBtn
                     SmallerBtn.Text = "放大";
                     FlowBox.Location = flowBoxWhenSmallPoint;
                     FlowBox.Size = flowBoxSmallSize;
+
+                    TopMost = true;
                 }
                 else
                 {
@@ -85,21 +88,42 @@ namespace FloatWowBtn
                     SmallerBtn.Text = "缩小";
                     FlowBox.Location = flowBoxWhenBigPoint;
                     FlowBox.Size = flowBoxBigSize;
+
+                    TopMost = false;
                 }
             });
+
+            WindowTopmostCheckBox_CheckedChanged(WindowTopmostCheckBox, null);
+        }
+
+        private void Instance_MyTopMostAlwaysEvent(bool alwayTop)
+        {
+            if (alwayTop)
+            {
+                TopMost = true;
+            }
+            else {
+                if (WindowSizeDispatcher.Instance.getState())
+                {
+                    TopMost = false;
+                }
+                else 
+                {
+                    TopMost = true;
+                }
+            }
         }
 
         private void Instance_AllWowPtrsChangedEvent()
         {
-            
-            ShowOnChecks(Context.Instance.AllWowPtrs);
+            ShowOnChecks(Context.Instance.CachedAllWowPtrs);
         }
 
-        private void ShowOnChecks(List<IntPtrIndex> wowStrs) {
+        private void ShowOnChecks(List<IntPtr> wowStrs) {
             for (int i = 0; i < CheckBoxes.Count && i < wowStrs.Count; i++) {
                 CheckBoxes[i].Visible = true;
-                CheckBoxes[i].Text =  "0x" + wowStrs[i].Addr.ToString("X8");
-                CheckBoxes[i].Tag = wowStrs[i].Addr;
+                CheckBoxes[i].Text =  "0x" + wowStrs[i].ToString("X8");
+                CheckBoxes[i].Tag = wowStrs[i];
             }
 
             if (wowStrs.Count < CheckBoxes.Count) {
@@ -147,6 +171,24 @@ namespace FloatWowBtn
             return ptrs;
         }
 
+
+        public List<IntPtrAndBool> AllPtrs()
+        {
+            var ptrs = new List<IntPtrAndBool>();
+            foreach (var checkbox in CheckBoxes)
+            {
+                if (checkbox.Tag != null)
+                {
+                    ptrs.Add(new IntPtrAndBool() {
+                        Ptr = (IntPtr)checkbox.Tag,
+                        Check = checkbox.Checked
+                    });
+                }
+            }
+
+            return ptrs;
+        }
+
         private void CloseBtn_Click(object sender, EventArgs e)
         {
             Close();
@@ -182,7 +224,7 @@ namespace FloatWowBtn
             }
 
             bool isNoChanged = true;
-            bool toFront = Context.Instance.IsStillGobackToFrontChecked;
+            bool toFront = Context.NotSelectStillToFront;
             switch (md)
             {
                 case ClickMode.Scan:
@@ -239,9 +281,24 @@ namespace FloatWowBtn
             ClickOn(ClickMode.Key, Keys.D2);
         }
 
-        private void StillGobackCheckBox_CheckedChanged(object sender, EventArgs e)
+        private void ResortBtn_Click(object sender, EventArgs e)
         {
-            Context.Instance.IsStillGobackToFrontChecked = StillGobackCheckBox.Checked;
+            mActive.Resort();
+        }
+
+        private void Wow1Checkbox_CheckedChanged(object sender, EventArgs e)
+        {
+            Context.Instance.reGetSelectedAndAll();
+        }
+
+        private void WindowTopmostCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            Context.Instance.TopMostAlways = WindowTopmostCheckBox.Checked;
+        }
+
+        private void SwitchFrontBtn_Click(object sender, EventArgs e)
+        {
+            mActive.SwitchIt();
         }
 
         private void SingleBtn3_Click(object sender, EventArgs e)

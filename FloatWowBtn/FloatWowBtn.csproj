@@ -57,6 +57,7 @@
     <Compile Include="FloatSwitchButtonDispatcher.cs" />
     <Compile Include="IButtonDispatcher.cs" />
     <Compile Include="IWindowSizeChanged.cs" />
+    <Compile Include="Utils.cs" />
     <Compile Include="WindowApi.cs" />
     <Compile Include="FloatWowButtonsForm.cs">
       <SubType>Form</SubType>
